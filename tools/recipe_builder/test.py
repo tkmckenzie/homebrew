@@ -19,4 +19,4 @@ print(wort.calculate_ibu())
 print(wort.calculate_gravity())
 
 beer = wort.ferment(OG = 1.072)
-print(beer.calculate_abv())
+print(beer.calculate_abv(attenuation = 0.8))

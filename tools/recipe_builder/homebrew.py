@@ -10,6 +10,9 @@ with open('utilization.csv', 'r') as f: utilization_data = pd.DataFrame([[float(
 # Functions
 utilization = spi.interp2d(utilization_data.iloc[0,1:], utilization_data.iloc[1:,0], utilization_data.iloc[1:,1:]) # First arg is gravity, second is boil time
 
+def gravity_to_plato(sg):
+	return -205.347 * (sg**2) + 668 * sg - 463.37
+
 # Classes
 class HopAddition:
 	def __init__(self, AAU, weight, time):
@@ -66,6 +69,9 @@ class Wort:
 		malt_additions: Either an object of class MaltAddition or a list of objects of class MaltAddition
 		'''
 		
+		if ((type(malt_additions) == list and len(malt_additions) > 0) or type(malt_additions) == MaltAddition) and self.volume <= 0:
+			raise ValueError('Water must be added to recipe before malt.')
+		
 		if type(malt_additions) == MaltAddition:
 			self.malt_additions.append(malt_additions)
 		elif type(malt_additions) == list:
@@ -78,10 +84,10 @@ class Wort:
 		hop_additions: Either an object of class HopAddition or a list of objects of class HopAddition
 		'''
 		
-		if len(hop_additions) > 0 and self.volume <= 0:
-			raise ValueError('Wort must have positive volume before hops can be added.')
+		if ((type(hop_additions) == list and len(hop_additions) > 0) or type(hop_additions) == HopAddition) and self.volume <= 0:
+			raise ValueError('Water must be added to recipe before hops.')
 		
-		if len(hop_additions) > 0:
+		if ((type(hop_additions) == list and len(hop_additions) > 0) or type(hop_additions) == HopAddition):
 			gravity_boil = self.calculate_gravity()
 		else:
 			gravity_boil = 1.000
@@ -122,16 +128,21 @@ class Beer:
 		attenuation: Proportion of sugars converted by yeast
 		FG: Final gravity of beer (overrides attenuation, use when actual gravity measurement is taken)
 		'''
+		# Using the following formulas:
+		# ABV = ABW * FG / 0.794
+		# ABW = (OE - RE) / (2.0665 - 0.010665 * OE)
+		# RE = 0.1948 * OE + 0.8052 * AE
+		# OE = gravity_to_plato(OG)
+		# AE = gravity_to_plato(FG)
 		
 		if FG == None:
 			FG = (self.OG - 1) * (1 - attenuation) + 1
 			
-		OE = 259 - 259 / self.OG
-		RE = 259 - 259 / FG
-		ABW =  (OE - RE) / (2.0665 - (0.010665 * OE))
+		OE = gravity_to_plato(self.OG)
+		AE = gravity_to_plato(FG)
+		RE = 0.1948 * OE + 0.8052 * AE
+		ABW =  (OE - RE) / (2.0665 - 0.010665 * OE)
 		
-		ABV = (ABW * (FG / 0.794))
-		
-		print(FG)
+		ABV = ABW * FG / 0.794
 		
 		return ABV
