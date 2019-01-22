@@ -1,37 +1,76 @@
+import copy
 import homebrew as hb
+import dill as pkl
+import re
 import tkinter as tk
-import tkinter.ttk as ttk
+import tkinter.filedialog as tkfd
 import tkinter.messagebox as tkmb
+import tkinter.ttk as ttk
+
+##############################
+# Function wrapper
+#def wrapper
 
 ##############################
 # Functions
 def new_recipe():
-	global commands, item_num, wort
+	global commands, wort
 	commands = []
-	item_num = 1
 	tree.delete(*tree.get_children())
 	wort = hb.Wort()
 def open_recipe():
-	print(commands)
+	global commands, tree, wort
+	
+	filename = tkfd.askopenfilename(initialdir = 'saved_recipes/', title = 'Open recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
+	if filename != '':
+		with open(filename, 'rb') as loadfile:
+			save_dict = pkl.load(loadfile)
+		commands = save_dict['commands']
+		tree = save_dict['tree']
+		wort = save_dict['wort']
 def save_recipe():
-	print('save recipe')
+	global commands, tree, wort
+	
+	save_dict = {'commands': commands, 'tree': tree, 'wort': wort}
+	filename = tkfd.asksaveasfilename(initialdir = 'saved_recipes/', title = 'Save recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
+	if filename != '':
+		if not re.search('.hbr$', filename): filename += '.hbr'
+		with open(filename, 'wb') as savefile:
+			pkl.dump(save_dict, savefile)
 def delete_entry():
-	index = tree.index(tree.selection())
+	global commands, wort
 	
-	# First test that commands will run if selection is deleted
+	selection = tree.selection()
 	
-	
-	tree.delete(tree.selection()[0])
-	commands.pop(index)
-	print(commands)
+	if len(selection) > 0:
+		index = tree.index(selection[0])
+		
+		# Test that new list of commands will run, otherwise revert to copy
+		commands_copy = copy.deepcopy(commands)
+		wort_copy = copy.deepcopy(wort)	
+		try:
+			commands.pop(index)
+			wort = hb.Wort()
+			for command in commands:
+				command['function'](wort)(**command['kwargs'])
+			tree.delete(selection[0])
+			
+			# Fix indices
+			children = tree.get_children()
+			for fix_index in range(index, len(children)):
+				tree.item(children[fix_index], text = str(tree.index(children[fix_index]) + 1))
+		except:
+			tkmb.showwarning('Recipe error', 'Something went wrong (probably related to water additions).\nChange your selection and try again.')
+			commands = commands_copy
+			wort = wort_copy
 def clear_selection():
 	tree.selection_remove(tree.selection()[0])
 def add_water():
-	global item_num
+	global commands, wort
 	
 	# Functions
 	def submit():
-		global item_num
+		global commands, wort
 		
 		volume = entry.get()
 		try:
@@ -47,12 +86,31 @@ def add_water():
 			valid_input = False
 		
 		if valid_input:
-			wort.add_water(volume)
-			commands.append({'function': wort.add_water, 'kwargs': {'volume': volume}})
-			
-			tree.insert('', 'end', text = str(item_num), values = ('Added %.2f gal water' % volume, None))
-
-			item_num += 1
+			selection = tree.selection()
+			if len(selection) > 0:
+				index = tree.index(selection[0])
+				
+				# Make sure new command chain will successfully execute, return to old value if not
+				commands_copy = copy.deepcopy(commands)
+				wort_copy = copy.deepcopy(wort)
+				
+				try:
+					commands.insert(index, {'function': lambda wort: wort.add_water, 'kwargs': {'volume': volume}})
+					wort = hb.Wort()
+					for command in commands:
+						command['function'](wort)(**command['kwargs'])
+					tree.insert('', index, text = index + 1, values = ('Added %.2f gal water' % volume, None))
+					children = tree.get_children()
+					for fix_index in range(index, len(children)):
+						tree.item(children[fix_index], text = str(tree.index(children[fix_index]) + 1))
+				except:
+					tkmb.showwarning('Recipe error', 'Something went wrong (probably related to water additions).\nChange your selection and try again.')
+					commands = commands_copy
+					wort = wort_copy
+			else:
+				wort.add_water(volume)
+				commands.append({'function': lambda wort: wort.add_water, 'kwargs': {'volume': volume}})
+				tree.insert('', 'end', text = len(tree.get_children()) + 1, values = ('Added %.2f gal water' % volume, None))
 			
 			dialog.destroy()
 	
@@ -76,11 +134,11 @@ def add_water():
 	root.wait_window(dialog)
 
 def add_malt():
-	global item_num
+	global commands, wort
 	
 	# Functions
 	def submit():
-		global item_num
+		global commands, wort
 		
 		ppg = entry_ppg.get()
 		weight = entry_weight.get()
@@ -98,15 +156,35 @@ def add_malt():
 			valid_input = False
 		
 		if valid_input:
-			try:
-				wort.add_malt(hb.MaltAddition(PPG = ppg, weight = weight))
-				commands.append({'function': wort.add_malt, 'kwargs': {'malt_additions': hb.MaltAddition(PPG = ppg, weight = weight)}})
-			
-				tree.insert('', 'end', text = str(item_num), values = ('Added %.2f lbs of %.3f PPG malt' % (weight, ppg), None))
+			selection = tree.selection()
+			if len(selection) > 0:
+				index = tree.index(selection[0])
 				
-				item_num += 1
-			except ValueError:
-				tkmb.showwarning('Recipe error', 'Water must be added to recipe before malt.')
+				# Make sure new command chain will successfully execute, return to old value if not
+				commands_copy = copy.deepcopy(commands)
+				wort_copy = copy.deepcopy(wort)
+				
+				try:
+					commands.insert(index, {'function': lambda wort: wort.add_malt, 'kwargs': {'malt_additions': hb.MaltAddition(PPG = ppg, weight = weight)}})
+					wort = hb.Wort()
+					for command in commands:
+						command['function'](wort)(**command['kwargs'])
+					tree.insert('', index, text = index + 1, values = ('Added %.2f lbs of %.3f PPG malt' % (weight, ppg), None))
+					children = tree.get_children()
+					for fix_index in range(index, len(children)):
+						tree.item(children[fix_index], text = str(tree.index(children[fix_index]) + 1))
+				except:
+					tkmb.showwarning('Recipe error', 'Something went wrong (probably related to water additions).\nChange your selection and try again.')
+					commands = commands_copy
+					wort = wort_copy
+			else:
+				try:
+					wort.add_malt(hb.MaltAddition(PPG = ppg, weight = weight))
+					commands.append({'function': lambda wort: wort.add_malt, 'kwargs': {'malt_additions': hb.MaltAddition(PPG = ppg, weight = weight)}})
+				
+					tree.insert('', 'end', text = len(tree.get_children()) + 1, values = ('Added %.2f lbs of %.3f PPG malt' % (weight, ppg), None))
+				except ValueError:
+					tkmb.showwarning('Recipe error', 'Water must be added to recipe before malt.')
 			
 			dialog.destroy()
 	
@@ -138,11 +216,11 @@ def add_malt():
 		root.wait_window(dialog)
 	
 def add_hops():
-	global item_num
+	global commands, wort
 	
 	# Functions
 	def submit():
-		global item_num
+		global commands, wort
 		
 		aau = entry_aau.get()
 		weight = entry_weight.get()
@@ -162,15 +240,32 @@ def add_hops():
 			valid_input = False
 		
 		if valid_input:
-			try:
-				wort.add_hops(hb.HopAddition(AAU = aau, weight = weight, time = time))
-				commands.append({'function': wort.add_hops, 'kwargs': {'hop_additions': hb.HopAddition(AAU = aau, weight = weight, time = time)}})
-			
-				tree.insert('', 'end', text = str(item_num), values = ('Added %.2f oz of %.2f%% AAU hops (%.1f min)' % (weight, aau, time), None))
+			selection = tree.selection()
+			if len(selection) > 0:
+				index = tree.index(selection[0])
 				
-				item_num += 1
-			except ValueError:
-				tkmb.showwarning('Recipe error', 'Water must be added to recipe before hops.')
+				# Make sure new command chain will successfully execute, return to old value if not
+				commands_copy = copy.deepcopy(commands)
+				wort_copy = copy.deepcopy(wort)
+				
+				try:
+					commands.insert(index, {'function': lambda wort: wort.add_hops, 'kwargs': {'hop_additions': hb.HopAddition(AAU = aau, weight = weight, time = time)}})
+					wort = hb.Wort()
+					for command in commands:
+						command['function'](wort)(**command['kwargs'])
+					tree.insert('', index, text = index + 1, values = ('Added %.2f oz of %.2f%% AAU hops (%.1f min)' % (weight, aau, time), None))
+				except:
+					tkmb.showwarning('Recipe error', 'Something went wrong (probably related to water additions).\nChange your selection and try again.')
+					commands = commands_copy
+					wort = wort_copy
+			else:
+				try:
+					wort.add_hops(hb.HopAddition(AAU = aau, weight = weight, time = time))
+					commands.append({'function': lambda wort: wort.add_hops, 'kwargs': {'hop_additions': hb.HopAddition(AAU = aau, weight = weight, time = time)}})
+				
+					tree.insert('', 'end', text = len(tree.get_children()) + 1, values = ('Added %.2f oz of %.2f%% AAU hops (%.1f min)' % (weight, aau, time), None))
+				except ValueError:
+					tkmb.showwarning('Recipe error', 'Water must be added to recipe before hops.')
 			
 			dialog.destroy()
 	
@@ -288,6 +383,7 @@ def ferment():
 		input_text_attenuation.grid(row = 1, column = 0)
 		
 		entry_attenuation = tk.Entry(dialog)
+		entry_attenuation.insert(0, '0.75')
 		entry_attenuation.grid(row = 1, column = 1)
 		
 		input_text_fg = tk.Label(dialog, text = 'FG override:')
@@ -366,7 +462,6 @@ root.resizable(width = False, height = False)
 ##############################
 # Run program
 commands = []
-item_num = 1
 wort = hb.Wort()
 
 root.mainloop()
