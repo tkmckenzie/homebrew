@@ -2,8 +2,8 @@
 # Set working directory
 # Remove this when debugging
 import os, sys
-#os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(sys.path[0])
+##os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 ##############################
 # Imports
@@ -271,6 +271,9 @@ def add_hops():
 					for command in commands:
 						command['function'](wort)(**command['kwargs'])
 					tree.insert('', index, text = index + 1, values = ('Added %.2f oz of %.2f%% AAU hops (%.1f min)' % (weight, aau, time), None))
+					children = tree.get_children()
+					for fix_index in range(index, len(children)):
+						tree.item(children[fix_index], text = str(tree.index(children[fix_index]) + 1))
 				except:
 					tkmb.showwarning('Recipe error', 'Something went wrong (probably related to water additions).\nChange your selection and try again.')
 					commands = commands_copy
@@ -350,7 +353,7 @@ def ferment():
 			if FG_override == '':
 				FG = None
 			else:
-				FG = float(FG)
+				FG = float(FG_override)
 				if FG < 0: raise ValueError
 		except ValueError:
 			tkmb.showwarning('Input error', 'FG override must be either blank or a number between zero and one.')
