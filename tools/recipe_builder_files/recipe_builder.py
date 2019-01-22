@@ -1,3 +1,12 @@
+##############################
+# Set working directory
+# Remove this when debugging
+import os, sys
+#os.chdir(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(sys.path[0])
+
+##############################
+# Imports
 import copy
 import homebrew as hb
 import dill as pkl
@@ -8,37 +17,43 @@ import tkinter.messagebox as tkmb
 import tkinter.ttk as ttk
 
 ##############################
-# Function wrapper
-#def wrapper
-
-##############################
 # Functions
 def new_recipe():
-	global commands, wort
+	global commands, tree, wort
 	commands = []
 	tree.delete(*tree.get_children())
 	wort = hb.Wort()
 def open_recipe():
 	global commands, tree, wort
 	
+	tree.delete(*tree.get_children())
+	
 	filename = tkfd.askopenfilename(initialdir = 'saved_recipes/', title = 'Open recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
 	if filename != '':
 		with open(filename, 'rb') as loadfile:
 			save_dict = pkl.load(loadfile)
 		commands = save_dict['commands']
-		tree = save_dict['tree']
-		wort = save_dict['wort']
+		for item in save_dict['tree_data']:
+			tree.insert('', 'end', text = item['text'], values = item['values'])
+		wort = hb.Wort()
+		try:
+			for command in commands:
+					command['function'](wort)(**command['kwargs'])
+		except:
+			tkmb.showwarning('Recipe error', 'Something went wrong when loading recipe (probably related to water additions).')
 def save_recipe():
-	global commands, tree, wort
+	global commands, tree
 	
-	save_dict = {'commands': commands, 'tree': tree, 'wort': wort}
+	tree_data = [tree.item(child) for child in tree.get_children()]
+	save_dict = {'commands': commands, 'tree_data': tree_data}
+	
 	filename = tkfd.asksaveasfilename(initialdir = 'saved_recipes/', title = 'Save recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
 	if filename != '':
 		if not re.search('.hbr$', filename): filename += '.hbr'
 		with open(filename, 'wb') as savefile:
 			pkl.dump(save_dict, savefile)
 def delete_entry():
-	global commands, wort
+	global commands, tree, wort
 	
 	selection = tree.selection()
 	
@@ -64,6 +79,8 @@ def delete_entry():
 			commands = commands_copy
 			wort = wort_copy
 def clear_selection():
+	global tree
+	
 	tree.selection_remove(tree.selection()[0])
 def add_water():
 	global commands, wort
