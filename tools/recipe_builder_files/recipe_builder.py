@@ -9,7 +9,11 @@ os.chdir(sys.path[0])
 # Imports
 import copy
 import homebrew as hb
-import dill as pkl
+try:
+	import dill as pkl
+	dill_imported = True
+except ModuleNotFoundError:
+	dill_imported = False
 import re
 import tkinter as tk
 import tkinter.filedialog as tkfd
@@ -26,32 +30,37 @@ def new_recipe():
 def open_recipe():
 	global commands, tree, wort
 	
-	tree.delete(*tree.get_children())
-	
-	filename = tkfd.askopenfilename(initialdir = 'saved_recipes/', title = 'Open recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
-	if filename != '':
-		with open(filename, 'rb') as loadfile:
-			save_dict = pkl.load(loadfile)
-		commands = save_dict['commands']
-		for item in save_dict['tree_data']:
-			tree.insert('', 'end', text = item['text'], values = item['values'])
-		wort = hb.Wort()
-		try:
-			for command in commands:
-					command['function'](wort)(**command['kwargs'])
-		except:
-			tkmb.showwarning('Recipe error', 'Something went wrong when loading recipe (probably related to water additions).')
+	if not dill_imported:
+		tkmb.showerror('Package error', 'The "dill" package is needed to load recipes.\nTo enable loading, please install dill and restart the program.')
+	else:
+		filename = tkfd.askopenfilename(initialdir = 'saved_recipes/', title = 'Open recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
+		if filename != '':
+			tree.delete(*tree.get_children())
+			with open(filename, 'rb') as loadfile:
+				save_dict = pkl.load(loadfile)
+			commands = save_dict['commands']
+			for item in save_dict['tree_data']:
+				tree.insert('', 'end', text = item['text'], values = item['values'])
+			wort = hb.Wort()
+			try:
+				for command in commands:
+						command['function'](wort)(**command['kwargs'])
+			except:
+				tkmb.showwarning('Recipe error', 'Something went wrong when loading recipe (probably related to water additions).')
 def save_recipe():
 	global commands, tree
 	
-	tree_data = [tree.item(child) for child in tree.get_children()]
-	save_dict = {'commands': commands, 'tree_data': tree_data}
-	
-	filename = tkfd.asksaveasfilename(initialdir = 'saved_recipes/', title = 'Save recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
-	if filename != '':
-		if not re.search('.hbr$', filename): filename += '.hbr'
-		with open(filename, 'wb') as savefile:
-			pkl.dump(save_dict, savefile)
+	if not dill_imported:
+		tkmb.showerror('Package error', 'The "dill" package is needed to save recipes.\nTo enable saving, please install dill and restart the program.')
+	else:
+		tree_data = [tree.item(child) for child in tree.get_children()]
+		save_dict = {'commands': commands, 'tree_data': tree_data}
+		
+		filename = tkfd.asksaveasfilename(initialdir = 'saved_recipes/', title = 'Save recipe', filetypes = (('Recipe files','*.hbr'), ('All files','*.*')))
+		if filename != '':
+			if not re.search('.hbr$', filename): filename += '.hbr'
+			with open(filename, 'wb') as savefile:
+				pkl.dump(save_dict, savefile)
 def delete_entry():
 	global commands, tree, wort
 	
@@ -383,7 +392,7 @@ def ferment():
 			tk.Label(results_dialog, text = 'FG: %.3f' % FG).grid(row = 1, column = 0)
 			tk.Label(results_dialog, text = 'Attenuation: %.2f' % attenuation).grid(row = 2, column = 0)
 			tk.Label(results_dialog, text = 'IBU: %.1f' % beer.ibu).grid(row = 3, column = 0)
-			tk.Label(results_dialog, text = 'ABV: %.2f' % abv).grid(row = 4, column = 0)
+			tk.Label(results_dialog, text = 'ABV: %.2f%%' % abv).grid(row = 4, column = 0)
 			
 			tk.Button(results_dialog, text = 'OK', command = results_dialog.destroy).grid(row = 5, column = 0)
 	
